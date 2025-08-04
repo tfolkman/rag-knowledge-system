@@ -1,0 +1,85 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+default_stages: [pre-commit]
+fail_fast: false
+repos:
+  # Formatting checks (fast, fail early)
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+        language_version: python3
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+
+  # Linting
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.9
+    hooks:
+      - id: ruff
+
+  # Type checking
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        additional_dependencies: []
+        args: [--ignore-missing-imports]
+        files: ^src/
+
+  # Run tests
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: uv run pytest --cov=src --cov-fail-under=70 --cov-report=term-missing
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+  # Secret detection
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: package-lock.json
+
+  # Trivy vulnerability scanner
+  - repo: https://github.com/mxab/pre-commit-trivy
+    rev: v0.15.0
+    hooks:
+      - id: trivyfs-docker
+        args:
+          - --skip-dirs
+          - .venv
+          - --skip-dirs
+          - __pycache__
+          - --skip-dirs
+          - .git
+          - --skip-dirs
+          - data
+          - --severity
+          - CRITICAL,HIGH,MEDIUM
+          - --exit-code
+          - "1"
+          - .
+
+  # General pre-commit hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: debug-statements
+      - id: mixed-line-ending

@@ -1,0 +1,144 @@
+from typing import Any, Dict, List, Optional
+
+from haystack import Document, Pipeline
+from haystack.components.preprocessors import DocumentSplitter
+from haystack.components.writers import DocumentWriter
+from haystack_integrations.components.embedders.ollama import OllamaTextEmbedder
+from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
+
+from src.config import Config
+
+
+class IndexingPipeline:
+    """Indexing pipeline for RAG system using Haystack and Qdrant."""
+
+    def __init__(self, config: Config):
+        """Initialize the indexing pipeline.
+
+        Args:
+            config: Configuration object
+        """
+        self.config = config
+        self.document_store: Optional[QdrantDocumentStore] = None
+        self.pipeline: Optional[Pipeline] = None
+
+    def setup_document_store(self) -> None:
+        """Setup Qdrant document store."""
+        self.document_store = QdrantDocumentStore(
+            url=self.config.qdrant_url,
+            index=self.config.qdrant_collection_name,
+            embedding_dim=1024,  # mxbai-embed-large dimension
+            wait_result_from_api=True,
+            recreate_index=False,
+        )
+
+    def create_indexing_pipeline(self) -> None:
+        """Create the indexing pipeline with all components."""
+        if not self.document_store:
+            raise ValueError("Document store not initialized. Call setup_document_store() first.")
+
+        # Initialize components
+        embedder = OllamaTextEmbedder(
+            model=self.config.ollama_embedding_model, url=self.config.ollama_base_url
+        )
+
+        splitter = DocumentSplitter(
+            split_by="sentence",
+            split_length=self.config.chunk_size,
+            split_overlap=self.config.chunk_overlap,
+        )
+
+        writer = DocumentWriter(document_store=self.document_store)
+
+        # Create pipeline
+        self.pipeline = Pipeline()
+        self.pipeline.add_component("splitter", splitter)
+        self.pipeline.add_component("embedder", embedder)
+        self.pipeline.add_component("writer", writer)
+
+        # Connect components
+        self.pipeline.connect("splitter", "embedder")
+        self.pipeline.connect("embedder", "writer")
+
+    def convert_documents(self, raw_documents: List[Dict[str, Any]]) -> List[Document]:
+        """Convert raw documents to Haystack Document format.
+
+        Args:
+            raw_documents: List of raw documents with content and metadata
+
+        Returns:
+            List of Haystack Document objects
+        """
+        haystack_documents = []
+
+        for raw_doc in raw_documents:
+            # Skip non-text documents for now
+            if raw_doc["metadata"].get("mimeType") != "text/plain":
+                continue
+
+            # Convert bytes to string if needed
+            content = raw_doc["content"]
+            if isinstance(content, bytes):
+                content = content.decode("utf-8", errors="ignore")
+
+            # Create Haystack Document
+            doc = Document(content=content, meta=raw_doc["metadata"])
+            haystack_documents.append(doc)
+
+        return haystack_documents
+
+    def process_documents(self, raw_documents: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Process documents through the indexing pipeline.
+
+        Args:
+            raw_documents: List of raw documents to process
+
+        Returns:
+            Processing results
+        """
+        if not self.pipeline:
+            raise ValueError("Pipeline not initialized. Call create_indexing_pipeline() first.")
+
+        # Convert to Haystack format
+        documents = self.convert_documents(raw_documents)
+
+        if not documents:
+            return {
+                "documents_processed": 0,
+                "documents_written": 0,
+                "message": "No text documents to process",
+            }
+
+        # Run pipeline
+        result = self.pipeline.run({"splitter": {"documents": documents}})
+
+        return {
+            "documents_processed": len(documents),
+            "documents_written": result.get("writer", {}).get("documents_written", 0),
+            "result": result,
+        }
+
+    def get_collection_info(self) -> Dict[str, Any]:
+        """Get information about the document collection.
+
+        Returns:
+            Collection information
+        """
+        if not self.document_store:
+            raise ValueError("Document store not initialized. Call setup_document_store() first.")
+
+        return {
+            "collection_name": self.config.qdrant_collection_name,
+            "document_count": self.document_store.count_documents(),
+            "url": self.config.qdrant_url,
+        }
+
+    def initialize(self) -> None:
+        """Initialize the complete indexing pipeline."""
+        self.setup_document_store()
+        self.create_indexing_pipeline()
+
+    def cleanup(self) -> None:
+        """Cleanup pipeline resources."""
+        self.document_store = None
+        self.pipeline = None

@@ -1,0 +1,68 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+venv/
+ENV/
+env/
+
+# Environment and credentials
+.env
+.env.*
+!.env.example
+credentials.json
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+
+# Security scan caches
+.pre-commit-trivy-cache/
+.secrets.baseline
+.trivy-cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Logs
+*.log
+logs/
+
+# Local data
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# UV
+.uv/
+uv.lock.local
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# ruff
+.ruff_cache/
