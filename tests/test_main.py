@@ -94,11 +94,12 @@ class TestRAGSystem:
         """Test successful document loading and indexing."""
         # Setup pipelines
         orchestrator.indexing_pipeline = Mock()
-        orchestrator.indexing_pipeline.index_documents = Mock()
+        orchestrator.indexing_pipeline.process_documents = Mock()
         orchestrator.query_pipeline = Mock()
 
         # Setup loader mock
         mock_loader_instance = Mock()
+        mock_loader_instance.authenticate = Mock()  # Add authenticate mock
         mock_loader_instance.load_documents.return_value = [
             {"name": "doc1.txt", "content": "content1", "mime_type": "text/plain"},
             {"name": "doc2.pdf", "content": "content2", "mime_type": "application/pdf"},
@@ -112,8 +113,9 @@ class TestRAGSystem:
         # Verify
         assert result is True
         mock_loader.assert_called_once_with(orchestrator.config)
+        mock_loader_instance.authenticate.assert_called_once()  # Verify authenticate was called
         mock_loader_instance.load_documents.assert_called_once_with("folder_id", max_documents=10)
-        orchestrator.indexing_pipeline.index_documents.assert_called_once()
+        orchestrator.indexing_pipeline.process_documents.assert_called_once()
 
     def test_display_loaded_documents(self, orchestrator):
         """Test document display table."""
@@ -156,7 +158,7 @@ class TestRAGSystem:
         orchestrator.start_chat()
 
         # Verify
-        mock_chat.assert_called_once_with(orchestrator.query_pipeline)
+        mock_chat.assert_called_once_with(orchestrator.config, orchestrator.query_pipeline)
         mock_chat_instance.run.assert_called_once()
 
     def test_display_system_info(self, orchestrator):

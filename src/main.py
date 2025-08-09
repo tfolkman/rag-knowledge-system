@@ -41,6 +41,9 @@ class RAGSystem:
             self.console.print("[cyan]Initializing pipelines...[/cyan]")
             self.indexing_pipeline = IndexingPipeline(self.config)
             self.query_pipeline = QueryPipeline(self.config)
+            # Initialize both pipeline components
+            self.indexing_pipeline.initialize()
+            self.query_pipeline.initialize()
             self.console.print("[green]✅ Pipelines initialized successfully[/green]")
             return True
         except Exception as e:
@@ -68,6 +71,7 @@ class RAGSystem:
 
             # Load documents
             loader = GoogleDriveLoader(self.config)
+            loader.authenticate()  # Authenticate before loading documents
             documents = loader.load_documents(actual_folder_id, max_documents=max_docs)
 
             if not documents:
@@ -81,7 +85,7 @@ class RAGSystem:
 
             # Index documents
             self.console.print("\n[cyan]Indexing documents...[/cyan]")
-            self.indexing_pipeline.index_documents(documents)
+            self.indexing_pipeline.process_documents(documents)
             self.console.print("[green]✅ Documents indexed successfully[/green]")
 
             return True
@@ -108,9 +112,13 @@ class RAGSystem:
         table.add_column("Size", style="yellow")
 
         for doc in documents[:10]:  # Show first 10
+            # Check for name in metadata or root level
+            name = doc.get("name") or doc.get("metadata", {}).get("name", "Unknown")
+            mime_type = doc.get("mime_type") or doc.get("metadata", {}).get("mimeType", "Unknown")
+
             table.add_row(
-                doc.get("name", "Unknown")[:50],
-                doc.get("mime_type", "Unknown"),
+                name[:50],
+                mime_type,
                 f"{len(doc.get('content', ''))} chars",
             )
 
@@ -125,7 +133,7 @@ class RAGSystem:
             self.console.print("[red]❌ Query pipeline not initialized![/red]")
             return
 
-        chat = ChatInterface(self.query_pipeline)
+        chat = ChatInterface(self.config, self.query_pipeline)
         chat.run()
 
     def show_info(self):

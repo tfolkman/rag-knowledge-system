@@ -9,16 +9,17 @@ install:
     uv venv
     uv pip install -e .
 
-# Start required services (Qdrant and Ollama)
+# Start required services (Qdrant in Docker, Ollama runs system-wide)
 services-up:
-    docker-compose up -d
-    @echo "Waiting for services to start..."
+    docker compose up -d
+    @echo "Waiting for Qdrant to start..."
     @sleep 5
-    @echo "✅ Services started"
+    @echo "✅ Qdrant started"
+    @echo "ℹ️  Using system-wide Ollama at localhost:11434"
 
 # Stop services
 services-down:
-    docker-compose down
+    docker compose down
 
 # Pull required Ollama models
 pull-models:
@@ -143,12 +144,12 @@ clean-all: clean services-down
 # Check if services are running
 services-status:
     @echo "Checking services..."
-    @docker ps | grep qdrant > /dev/null && echo "✅ Qdrant: Running" || echo "❌ Qdrant: Not running"
-    @docker ps | grep ollama > /dev/null && echo "✅ Ollama: Running" || echo "❌ Ollama: Not running"
+    @docker ps | grep qdrant > /dev/null && echo "✅ Qdrant: Running (Docker)" || echo "❌ Qdrant: Not running"
+    @curl -s http://localhost:11434/api/version > /dev/null && echo "✅ Ollama: Running (System)" || echo "❌ Ollama: Not running"
 
 # View logs
 logs:
-    docker-compose logs -f
+    docker compose logs -f
 
 # View Qdrant logs
 logs-qdrant:

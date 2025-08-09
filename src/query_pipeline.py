@@ -39,14 +39,14 @@ class QueryPipeline:
         Returns:
             Default prompt template string
         """
-        return """You are a helpful assistant that answers questions based on the provided context.
+        return """You are a helpful assistant. Answer the question based on the context if available, otherwise use your general knowledge.
 
-Context:
+Context from documents:
 {{ context }}
 
 Question: {{ question }}
 
-Please provide a clear and concise answer based on the context above. If the context doesn't contain relevant information to answer the question, please say so.
+If the context is empty or irrelevant, still provide a helpful answer based on your general knowledge, but mention that the information wasn't found in the indexed documents.
 
 Answer:"""
 
@@ -100,7 +100,7 @@ Answer:"""
                 "retriever": {"top_k": top_k},
                 "prompt_builder": {
                     "question": question,
-                    "context": "",  # Will be filled by retrieved documents
+                    # context will be filled by retrieved documents via pipeline connection
                 },
             }
         )

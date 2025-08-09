@@ -47,7 +47,7 @@ class TestIndexingPipeline:
         )
 
     @patch("src.indexing_pipeline.Pipeline")
-    @patch("src.indexing_pipeline.OllamaTextEmbedder")
+    @patch("src.indexing_pipeline.OllamaDocumentEmbedder")
     @patch("src.indexing_pipeline.DocumentSplitter")
     @patch("src.indexing_pipeline.DocumentWriter")
     def test_create_indexing_pipeline(
@@ -74,9 +74,7 @@ class TestIndexingPipeline:
         mock_embedder.assert_called_once_with(
             model="mxbai-embed-large", url="http://localhost:11434"
         )
-        mock_splitter.assert_called_once_with(
-            split_by="sentence", split_length=500, split_overlap=50
-        )
+        mock_splitter.assert_called_once_with(split_by="word", split_length=500, split_overlap=50)
         mock_writer.assert_called_once_with(document_store=pipeline.document_store)
 
         # Verify pipeline connections
@@ -147,9 +145,9 @@ class TestIndexingPipeline:
             }
         ]
 
-        # Should skip non-text documents for now
+        # PDF is now supported as a text document type
         haystack_documents = pipeline.convert_documents(raw_documents)
-        assert len(haystack_documents) == 0
+        assert len(haystack_documents) == 1  # PDF is now processed
 
     @patch("src.indexing_pipeline.QdrantDocumentStore")
     def test_process_documents_success(self, mock_qdrant):
