@@ -46,7 +46,6 @@ class TestQueryPipeline:
             recreate_index=False,
         )
 
-    @patch("src.query_pipeline.Pipeline")
     @patch("src.query_pipeline.OllamaGenerator")
     @patch("src.query_pipeline.OllamaTextEmbedder")
     @patch("src.query_pipeline.QdrantEmbeddingRetriever")
@@ -57,7 +56,6 @@ class TestQueryPipeline:
         mock_retriever,
         mock_embedder,
         mock_generator,
-        mock_pipeline,
     ):
         """Test creation of query pipeline."""
         # Mock components
@@ -69,14 +67,19 @@ class TestQueryPipeline:
         mock_generator.return_value = mock_generator_instance
         mock_prompt_builder_instance = Mock()
         mock_prompt_builder.return_value = mock_prompt_builder_instance
-        mock_pipeline_instance = Mock()
-        mock_pipeline.return_value = mock_pipeline_instance
 
         pipeline = QueryPipeline(self.config)
         pipeline.document_store = Mock()  # Mock document store
         pipeline.create_query_pipeline()
 
-        assert pipeline.pipeline == mock_pipeline_instance
+        # Pipeline is not created anymore since we use direct component calls
+        assert pipeline.pipeline is None
+
+        # Verify components are stored
+        assert pipeline.embedder == mock_embedder_instance
+        assert pipeline.retriever == mock_retriever_instance
+        assert pipeline.generator == mock_generator_instance
+        assert pipeline.prompt_builder == mock_prompt_builder_instance
 
         # Verify component creation
         mock_embedder.assert_called_once_with(
@@ -87,10 +90,6 @@ class TestQueryPipeline:
             model="llama3.2:latest", url="http://localhost:11434"
         )
         mock_prompt_builder.assert_called_once()
-
-        # Verify pipeline connections
-        assert mock_pipeline_instance.add_component.call_count == 4
-        assert mock_pipeline_instance.connect.call_count == 3
 
     def test_create_pipeline_without_document_store(self):
         """Test that creating pipeline without document store raises error."""
@@ -103,7 +102,7 @@ class TestQueryPipeline:
         """Test that querying without pipeline raises error."""
         pipeline = QueryPipeline(self.config)
 
-        with pytest.raises(ValueError, match="Pipeline not initialized"):
+        with pytest.raises(ValueError, match="Components not initialized"):
             pipeline.query("test query")
 
     @patch("src.query_pipeline.QdrantDocumentStore")
@@ -112,21 +111,33 @@ class TestQueryPipeline:
         mock_store = Mock()
         mock_qdrant.return_value = mock_store
 
-        # Mock pipeline
-        mock_pipeline = Mock()
-        mock_pipeline.run.return_value = {
-            "llm": {"replies": ["This is the generated answer based on the context."]},
-            "retriever": {
-                "documents": [
-                    Mock(content="Retrieved document 1", meta={"name": "doc1.txt"}),
-                    Mock(content="Retrieved document 2", meta={"name": "doc2.txt"}),
-                ]
-            },
+        # Mock components
+        mock_embedder = Mock()
+        mock_embedder.run.return_value = {"embedding": [0.1, 0.2, 0.3]}
+
+        mock_retriever = Mock()
+        mock_retriever.run.return_value = {
+            "documents": [
+                Mock(content="Retrieved document 1", meta={"name": "doc1.txt"}),
+                Mock(content="Retrieved document 2", meta={"name": "doc2.txt"}),
+            ]
+        }
+
+        mock_prompt_builder = Mock()
+        mock_prompt_builder.run.return_value = {"prompt": "Generated prompt with context"}
+
+        mock_generator = Mock()
+        mock_generator.run.return_value = {
+            "replies": ["This is the generated answer based on the context."]
         }
 
         pipeline = QueryPipeline(self.config)
         pipeline.setup_document_store()
-        pipeline.pipeline = mock_pipeline
+        pipeline.embedder = mock_embedder
+        pipeline.retriever = mock_retriever
+        pipeline.prompt_builder = mock_prompt_builder
+        pipeline.generator = mock_generator
+        # No need to mock pipeline anymore - we use direct component calls
 
         result = pipeline.query("What is the capital of France?")
 
@@ -136,7 +147,11 @@ class TestQueryPipeline:
         assert result["sources"][0]["metadata"]["name"] == "doc1.txt"
         assert result["query"] == "What is the capital of France?"
 
-        mock_pipeline.run.assert_called_once()
+        # Verify component calls
+        mock_embedder.run.assert_called_once_with(text="What is the capital of France?")
+        mock_retriever.run.assert_called_once()
+        mock_prompt_builder.run.assert_called_once()
+        mock_generator.run.assert_called_once()
 
     @patch("src.query_pipeline.QdrantDocumentStore")
     def test_query_with_no_sources(self, mock_qdrant):
@@ -144,16 +159,28 @@ class TestQueryPipeline:
         mock_store = Mock()
         mock_qdrant.return_value = mock_store
 
-        # Mock pipeline with no retrieved documents
-        mock_pipeline = Mock()
-        mock_pipeline.run.return_value = {
-            "llm": {"replies": ["I could not find relevant information to answer your question."]},
-            "retriever": {"documents": []},
+        # Mock components with no retrieved documents
+        mock_embedder = Mock()
+        mock_embedder.run.return_value = {"embedding": [0.1, 0.2, 0.3]}
+
+        mock_retriever = Mock()
+        mock_retriever.run.return_value = {"documents": []}
+
+        mock_prompt_builder = Mock()
+        mock_prompt_builder.run.return_value = {"prompt": "Generated prompt without context"}
+
+        mock_generator = Mock()
+        mock_generator.run.return_value = {
+            "replies": ["I could not find relevant information to answer your question."]
         }
 
         pipeline = QueryPipeline(self.config)
         pipeline.setup_document_store()
-        pipeline.pipeline = mock_pipeline
+        pipeline.embedder = mock_embedder
+        pipeline.retriever = mock_retriever
+        pipeline.prompt_builder = mock_prompt_builder
+        pipeline.generator = mock_generator
+        # No need to mock pipeline anymore - we use direct component calls
 
         result = pipeline.query("What is the capital of Mars?")
 
@@ -176,22 +203,32 @@ class TestQueryPipeline:
         mock_store = Mock()
         mock_qdrant.return_value = mock_store
 
-        # Mock pipeline
-        mock_pipeline = Mock()
-        mock_pipeline.run.return_value = {
-            "llm": {"replies": ["Answer"]},
-            "retriever": {"documents": []},
-        }
+        # Mock components
+        mock_embedder = Mock()
+        mock_embedder.run.return_value = {"embedding": [0.1, 0.2, 0.3]}
+
+        mock_retriever = Mock()
+        mock_retriever.run.return_value = {"documents": []}
+
+        mock_prompt_builder = Mock()
+        mock_prompt_builder.run.return_value = {"prompt": "Generated prompt"}
+
+        mock_generator = Mock()
+        mock_generator.run.return_value = {"replies": ["Answer"]}
 
         pipeline = QueryPipeline(self.config)
         pipeline.setup_document_store()
-        pipeline.pipeline = mock_pipeline
+        pipeline.embedder = mock_embedder
+        pipeline.retriever = mock_retriever
+        pipeline.prompt_builder = mock_prompt_builder
+        pipeline.generator = mock_generator
+        # No need to mock pipeline anymore - we use direct component calls
 
         pipeline.query("test query", top_k=10)
 
-        # Check that pipeline was called with correct parameters
-        call_args = mock_pipeline.run.call_args[0][0]
-        assert call_args["retriever"]["top_k"] == 10
+        # Check that retriever was called with correct top_k parameter
+        retriever_call_args = mock_retriever.run.call_args[1]
+        assert retriever_call_args["top_k"] == 10
 
     def test_get_collection_info_without_document_store(self):
         """Test getting collection info without document store raises error."""
@@ -253,23 +290,38 @@ class TestQueryPipeline:
             Mock(content="Document 2 content", meta={"name": "doc2.txt"}),
         ]
 
-        mock_pipeline = Mock()
-        mock_pipeline.run.return_value = {
-            "llm": {"replies": ["Generated answer"]},
-            "retriever": {"documents": mock_docs},
-        }
+        # Mock components
+        mock_embedder = Mock()
+        mock_embedder.run.return_value = {"embedding": [0.1, 0.2, 0.3]}
+
+        mock_retriever = Mock()
+        mock_retriever.run.return_value = {"documents": mock_docs}
+
+        mock_prompt_builder = Mock()
+        mock_prompt_builder.run.return_value = {"prompt": "Generated prompt with context"}
+
+        mock_generator = Mock()
+        mock_generator.run.return_value = {"replies": ["Generated answer"]}
 
         pipeline = QueryPipeline(self.config)
         pipeline.setup_document_store()
-        pipeline.pipeline = mock_pipeline
+        pipeline.embedder = mock_embedder
+        pipeline.retriever = mock_retriever
+        pipeline.prompt_builder = mock_prompt_builder
+        pipeline.generator = mock_generator
+        # No need to mock pipeline anymore - we use direct component calls
 
         pipeline.query("test query")
 
-        # Verify that pipeline was called with correct parameters
-        call_args = mock_pipeline.run.call_args[0][0]
-        assert "embedder" in call_args
-        assert call_args["embedder"]["text"] == "test query"
-        assert "prompt_builder" in call_args
-        assert call_args["prompt_builder"]["question"] == "test query"
-        assert "retriever" in call_args
-        assert call_args["retriever"]["top_k"] == 5
+        # Verify embedder call
+        mock_embedder.run.assert_called_once_with(text="test query")
+
+        # Verify retriever call
+        retriever_call_args = mock_retriever.run.call_args[1]
+        assert retriever_call_args["top_k"] == 5
+
+        # Verify prompt builder call with formatted context
+        prompt_builder_call_args = mock_prompt_builder.run.call_args[1]
+        assert prompt_builder_call_args["question"] == "test query"
+        assert "Document 1 content" in prompt_builder_call_args["context"]
+        assert "Document 2 content" in prompt_builder_call_args["context"]

@@ -1,3 +1,4 @@
+import logging
 from typing import Any, Dict, Optional
 
 from haystack import Pipeline
@@ -8,6 +9,8 @@ from haystack_integrations.components.retrievers.qdrant import QdrantEmbeddingRe
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 from src.config import Config
+
+logger = logging.getLogger(__name__)
 
 
 class QueryPipeline:
@@ -22,6 +25,11 @@ class QueryPipeline:
         self.config = config
         self.document_store: Optional[QdrantDocumentStore] = None
         self.pipeline: Optional[Pipeline] = None
+        # Store components for direct access
+        self.embedder: Optional[OllamaTextEmbedder] = None
+        self.retriever: Optional[QdrantEmbeddingRetriever] = None
+        self.prompt_builder: Optional[PromptBuilder] = None
+        self.generator: Optional[OllamaGenerator] = None
 
     def setup_document_store(self) -> None:
         """Setup Qdrant document store."""
@@ -55,30 +63,24 @@ Answer:"""
         if not self.document_store:
             raise ValueError("Document store not initialized. Call setup_document_store() first.")
 
-        # Initialize components
-        embedder = OllamaTextEmbedder(
+        # Initialize and store components for direct access
+        self.embedder = OllamaTextEmbedder(
             model=self.config.ollama_embedding_model, url=self.config.ollama_base_url
         )
 
-        retriever = QdrantEmbeddingRetriever(document_store=self.document_store, top_k=5)
+        self.retriever = QdrantEmbeddingRetriever(document_store=self.document_store, top_k=5)
 
-        prompt_builder = PromptBuilder(template=self.get_default_prompt_template())
+        self.prompt_builder = PromptBuilder(template=self.get_default_prompt_template())
 
-        generator = OllamaGenerator(
+        self.generator = OllamaGenerator(
             model=self.config.ollama_model_name, url=self.config.ollama_base_url
         )
 
-        # Create pipeline
-        self.pipeline = Pipeline()
-        self.pipeline.add_component("embedder", embedder)
-        self.pipeline.add_component("retriever", retriever)
-        self.pipeline.add_component("prompt_builder", prompt_builder)
-        self.pipeline.add_component("llm", generator)
+        # Note: We're using direct component calls instead of pipeline execution
+        # This gives us better control over the data flow and error handling
+        self.pipeline = None  # Not using Haystack pipeline execution anymore
 
-        # Connect components
-        self.pipeline.connect("embedder.embedding", "retriever.query_embedding")
-        self.pipeline.connect("retriever.documents", "prompt_builder.context")
-        self.pipeline.connect("prompt_builder.prompt", "llm.prompt")
+        logger.info("Query pipeline components initialized successfully")
 
     def query(self, question: str, top_k: int = 5) -> Dict[str, Any]:
         """Execute a query against the RAG system.
@@ -90,37 +92,75 @@ Answer:"""
         Returns:
             Query results with answer and sources
         """
-        if not self.pipeline:
-            raise ValueError("Pipeline not initialized. Call create_query_pipeline() first.")
+        if not self.embedder or not self.retriever or not self.prompt_builder or not self.generator:
+            raise ValueError("Components not initialized. Call create_query_pipeline() first.")
 
-        # Format context from retrieved documents
-        result = self.pipeline.run(
-            {
-                "embedder": {"text": question},
-                "retriever": {"top_k": top_k},
-                "prompt_builder": {
-                    "question": question,
-                    # context will be filled by retrieved documents via pipeline connection
-                },
-            }
-        )
+        try:
+            logger.debug(f"Processing query: {question[:100]}...")  # Log first 100 chars
 
-        # Extract results
-        answer = ""
-        if "llm" in result and "replies" in result["llm"] and result["llm"]["replies"]:
-            answer = result["llm"]["replies"][0]
+            # Step 1: Generate embedding for the question
+            logger.debug("Generating embedding for query")
+            embedding_result = self.embedder.run(text=question)
+            query_embedding = embedding_result["embedding"]
 
-        sources = []
-        if "retriever" in result and "documents" in result["retriever"]:
-            for doc in result["retriever"]["documents"]:
+            # Step 2: Retrieve relevant documents
+            # Ensure query_embedding is a list[float]
+            if isinstance(query_embedding, dict):
+                query_embedding = list(query_embedding.values())  # type: ignore
+
+            logger.debug(f"Retrieving top {top_k} documents")
+            retrieval_result = self.retriever.run(query_embedding=query_embedding, top_k=top_k)
+            documents = retrieval_result.get("documents", [])
+            logger.info(f"Retrieved {len(documents)} documents")
+
+            # Step 3: Format retrieved documents into context string
+            context_parts = []
+            sources = []
+            for i, doc in enumerate(documents, 1):
+                # Format each document chunk
+                doc_text = f"[Document {i}]\n{doc.content}\n"
+                if doc.meta:
+                    doc_text += f"Source: {doc.meta.get('name', 'Unknown')}\n"
+                context_parts.append(doc_text)
                 sources.append({"content": doc.content, "metadata": doc.meta})
 
-        return {
-            "query": question,
-            "answer": answer,
-            "sources": sources,
-            "raw_result": result,
-        }
+            # Join all document chunks into context
+            context = (
+                "\n---\n".join(context_parts) if context_parts else "No relevant documents found."
+            )
+            logger.debug(f"Formatted context with {len(context_parts)} document parts")
+
+            # Step 4: Build the prompt
+            logger.debug("Building prompt with context")
+            prompt_result = self.prompt_builder.run(question=question, context=context)
+            prompt = prompt_result["prompt"]
+
+            # Step 5: Generate the answer
+            logger.debug("Generating answer with LLM")
+            generation_result = self.generator.run(prompt=prompt)
+            answer = (
+                generation_result.get("replies", [""])[0]
+                if generation_result.get("replies")
+                else ""
+            )
+
+            logger.info(f"Successfully generated answer for query (length: {len(answer)} chars)")
+
+            return {
+                "query": question,
+                "answer": answer,
+                "sources": sources,
+                "raw_result": {
+                    "embedder": embedding_result,
+                    "retriever": retrieval_result,
+                    "prompt_builder": prompt_result,
+                    "generator": generation_result,
+                },
+            }
+
+        except Exception as e:
+            logger.error(f"Error processing query: {str(e)}", exc_info=True)
+            raise
 
     def get_collection_info(self) -> Dict[str, Any]:
         """Get information about the document collection.
@@ -144,5 +184,10 @@ Answer:"""
 
     def cleanup(self) -> None:
         """Cleanup pipeline resources."""
+        logger.debug("Cleaning up query pipeline resources")
         self.document_store = None
         self.pipeline = None
+        self.embedder = None
+        self.retriever = None
+        self.prompt_builder = None
+        self.generator = None
