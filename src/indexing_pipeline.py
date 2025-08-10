@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional
 from haystack import Document, Pipeline
 from haystack.components.preprocessors import DocumentSplitter
 from haystack.components.writers import DocumentWriter
-from haystack_integrations.components.embedders.ollama import OllamaTextEmbedder
+from haystack_integrations.components.embedders.ollama import OllamaDocumentEmbedder
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 from src.config import Config
@@ -11,6 +11,14 @@ from src.config import Config
 
 class IndexingPipeline:
     """Indexing pipeline for RAG system using Haystack and Qdrant."""
+
+    # Supported MIME types for document processing
+    SUPPORTED_MIME_TYPES = [
+        "text/plain",
+        "application/vnd.google-apps.document",  # Google Docs
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # Word docs
+    ]
 
     def __init__(self, config: Config):
         """Initialize the indexing pipeline.
@@ -38,12 +46,12 @@ class IndexingPipeline:
             raise ValueError("Document store not initialized. Call setup_document_store() first.")
 
         # Initialize components
-        embedder = OllamaTextEmbedder(
+        embedder = OllamaDocumentEmbedder(
             model=self.config.ollama_embedding_model, url=self.config.ollama_base_url
         )
 
         splitter = DocumentSplitter(
-            split_by="sentence",
+            split_by="word",  # Split by word count
             split_length=self.config.chunk_size,
             split_overlap=self.config.chunk_overlap,
         )
@@ -72,8 +80,11 @@ class IndexingPipeline:
         haystack_documents = []
 
         for raw_doc in raw_documents:
-            # Skip non-text documents for now
-            if raw_doc["metadata"].get("mimeType") != "text/plain":
+            # Process text-based documents
+            mime_type = raw_doc["metadata"].get("mimeType", "")
+
+            # Skip non-text documents
+            if mime_type and mime_type not in self.SUPPORTED_MIME_TYPES:
                 continue
 
             # Convert bytes to string if needed

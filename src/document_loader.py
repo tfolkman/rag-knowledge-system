@@ -84,8 +84,16 @@ class GoogleDriveLoader:
             raise ValueError("Not authenticated. Call authenticate() first.")
 
         try:
-            # Get the file content directly
-            request = self.service.files().get(fileId=file_id).get_media()
+            # First, get file metadata to check MIME type
+            file_metadata = self.service.files().get(fileId=file_id).execute()
+            mime_type = file_metadata.get("mimeType", "")
+
+            # Handle Google Docs (need to export as text)
+            if mime_type == "application/vnd.google-apps.document":
+                request = self.service.files().export_media(fileId=file_id, mimeType="text/plain")
+            else:
+                # For other files, download directly
+                request = self.service.files().get_media(fileId=file_id)
 
             # Download file content
             buffer = io.BytesIO()

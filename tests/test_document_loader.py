@@ -151,10 +151,15 @@ class TestGoogleDriveLoader:
         # Mock download
         mock_files = Mock()
         mock_service.files.return_value = mock_files
+
+        # Mock get for metadata
         mock_get = Mock()
         mock_files.get.return_value = mock_get
+        mock_get.execute.return_value = {"mimeType": "text/plain"}
+
+        # Mock get_media for file download
         mock_media = Mock()
-        mock_get.get_media.return_value = mock_media
+        mock_files.get_media.return_value = mock_media
 
         # Mock BytesIO
         mock_buffer = Mock()
@@ -176,7 +181,54 @@ class TestGoogleDriveLoader:
 
             assert content == b"Test document content"
             mock_files.get.assert_called_once_with(fileId="test_file_id")
-            mock_get.get_media.assert_called_once()
+            mock_files.get_media.assert_called_once_with(fileId="test_file_id")
+
+    @patch("src.document_loader.build")
+    @patch("src.document_loader.service_account.Credentials")
+    @patch("src.document_loader.io.BytesIO")
+    def test_download_google_doc(self, mock_bytesio, mock_credentials, mock_build):
+        """Test downloading Google Docs with export_media."""
+        # Setup authentication mocks
+        mock_creds = Mock()
+        mock_credentials.from_service_account_file.return_value = mock_creds
+        mock_service = Mock()
+        mock_build.return_value = mock_service
+
+        # Mock files API
+        mock_files = Mock()
+        mock_service.files.return_value = mock_files
+
+        # Mock get for metadata - return Google Doc mime type
+        mock_get = Mock()
+        mock_files.get.return_value = mock_get
+        mock_get.execute.return_value = {"mimeType": "application/vnd.google-apps.document"}
+
+        # Mock export_media for Google Docs
+        mock_export = Mock()
+        mock_files.export_media.return_value = mock_export
+
+        # Mock BytesIO
+        mock_buffer = Mock()
+        mock_bytesio.return_value = mock_buffer
+        mock_buffer.getvalue.return_value = b"Exported Google Doc content"
+
+        # Mock MediaIoBaseDownload
+        with patch("src.document_loader.MediaIoBaseDownload") as mock_download:
+            mock_downloader = Mock()
+            mock_download.return_value = mock_downloader
+            mock_downloader.next_chunk.side_effect = [
+                (True, Mock(progress=lambda: 1.0)),
+            ]
+
+            loader = GoogleDriveLoader(self.config)
+            loader.authenticate()
+            content = loader.download_document("google_doc_id")
+
+            assert content == b"Exported Google Doc content"
+            mock_files.get.assert_called_once_with(fileId="google_doc_id")
+            mock_files.export_media.assert_called_once_with(
+                fileId="google_doc_id", mimeType="text/plain"
+            )
 
     @patch("src.document_loader.build")
     @patch("src.document_loader.service_account.Credentials")

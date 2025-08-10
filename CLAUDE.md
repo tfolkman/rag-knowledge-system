@@ -108,6 +108,12 @@ The system uses service account authentication:
 2. The Google Drive folder must be shared with the service account email
 3. Documents are loaded with full metadata (name, MIME type, modification time)
 4. Supports filtering by MIME types and document count limits
+5. Google Docs are automatically exported as plain text for processing
+6. Supported document types:
+   - Plain text files (text/plain)
+   - Google Docs (application/vnd.google-apps.document) - exported as text
+   - PDF files (application/pdf)
+   - Word documents (application/vnd.openxmlformats-officedocument.wordprocessingml.document)
 
 ## Key Implementation Details
 

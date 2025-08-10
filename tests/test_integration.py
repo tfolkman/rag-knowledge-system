@@ -169,7 +169,34 @@ class TestIntegration:
         # Create query pipeline
         query_pipeline = QueryPipeline(self.config)
         query_pipeline.setup_document_store()
-        query_pipeline.pipeline = mock_pipeline
+
+        # Mock components for the new direct-call approach
+        mock_embedder = Mock()
+        mock_embedder.run.return_value = {"embedding": [0.1, 0.2, 0.3]}
+
+        mock_retriever = Mock()
+        mock_retriever.run.return_value = {
+            "documents": [
+                Mock(
+                    content="Python is a programming language",
+                    meta={"name": "python.txt"},
+                )
+            ]
+        }
+
+        mock_prompt_builder = Mock()
+        mock_prompt_builder.run.return_value = {"prompt": "Generated prompt"}
+
+        mock_generator = Mock()
+        mock_generator.run.return_value = {
+            "replies": ["This is a test answer about Python programming."]
+        }
+
+        query_pipeline.embedder = mock_embedder
+        query_pipeline.retriever = mock_retriever
+        query_pipeline.prompt_builder = mock_prompt_builder
+        query_pipeline.generator = mock_generator
+        # No need to set pipeline - we use direct component calls
 
         # Create chat interface
         chat_interface = ChatInterface(self.config, query_pipeline)
@@ -260,7 +287,34 @@ class TestIntegration:
                 # Step 3: Query documents
                 query_pipeline = QueryPipeline(self.config)
                 query_pipeline.setup_document_store()
-                query_pipeline.pipeline = mock_query_pipeline
+
+                # Mock components for direct call approach
+                mock_embedder = Mock()
+                mock_embedder.run.return_value = {"embedding": [0.1, 0.2, 0.3]}
+
+                mock_retriever = Mock()
+                mock_retriever.run.return_value = {
+                    "documents": [
+                        Mock(
+                            content="Python is a high-level programming language",
+                            meta={"name": "python_guide.txt"},
+                        )
+                    ]
+                }
+
+                mock_prompt_builder = Mock()
+                mock_prompt_builder.run.return_value = {"prompt": "Generated prompt"}
+
+                mock_generator = Mock()
+                mock_generator.run.return_value = {
+                    "replies": ["Python is a programming language known for simplicity."]
+                }
+
+                query_pipeline.embedder = mock_embedder
+                query_pipeline.retriever = mock_retriever
+                query_pipeline.prompt_builder = mock_prompt_builder
+                query_pipeline.generator = mock_generator
+                # No need to set pipeline - we use direct component calls
 
                 query_result = query_pipeline.query("What is Python?")
 
