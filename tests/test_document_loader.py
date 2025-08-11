@@ -257,9 +257,9 @@ class TestGoogleDriveLoader:
                 documents = loader.load_documents(max_documents=2)
 
                 assert len(documents) == 2
-                assert documents[0]["content"] == b"Content 1"
+                assert documents[0]["content"] == "Content 1"
                 assert documents[0]["metadata"]["name"] == "test1.txt"
-                assert documents[1]["content"] == b"Content 2"
+                assert documents[1]["content"] == "Content 2"
                 assert documents[1]["metadata"]["name"] == "test2.txt"
 
     def test_get_supported_mime_types(self):

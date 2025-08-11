@@ -32,21 +32,29 @@ pull-models:
 setup: services-up pull-models
     @echo "✅ Setup complete!"
 
-# Run the main application with default settings
+# Run the main application with hierarchical processing
 run:
-    uv run python run.py
+    uv run python run_hierarchical.py
 
-# Run with specific Google Drive folder
-run-folder folder_id:
+# Run with specific Google Drive folder (old non-hierarchical)
+run-folder-old folder_id:
     uv run python run.py --folder-id {{folder_id}}
+
+# Run with hierarchical Google Drive folder traversal
+run-folder folder_id:
+    uv run python run_hierarchical.py --folder-id {{folder_id}}
 
 # Run chat only (skip indexing)
 chat:
-    uv run python run.py --chat-only
+    uv run python run_hierarchical.py --chat-only
 
-# Run setup only (no chat)
+# Run setup only (no chat) - hierarchical indexing
 index:
-    uv run python run.py --setup-only
+    uv run python run_hierarchical.py
+
+# Clear store and re-index with hierarchical processing
+reindex:
+    uv run python run_hierarchical.py --clear-store
 
 # Show system configuration
 info:

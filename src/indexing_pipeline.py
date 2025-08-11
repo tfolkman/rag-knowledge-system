@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from haystack import Document, Pipeline
 from haystack.components.preprocessors import DocumentSplitter
@@ -7,6 +7,7 @@ from haystack_integrations.components.embedders.ollama import OllamaDocumentEmbe
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 
 from src.config import Config
+from src.hierarchical_splitter import HierarchicalDocumentSplitter
 
 
 class IndexingPipeline:
@@ -29,6 +30,7 @@ class IndexingPipeline:
         self.config = config
         self.document_store: Optional[QdrantDocumentStore] = None
         self.pipeline: Optional[Pipeline] = None
+        self.use_hierarchical = False  # Flag to enable hierarchical processing
 
     def setup_document_store(self) -> None:
         """Setup Qdrant document store."""
@@ -126,6 +128,49 @@ class IndexingPipeline:
         return {
             "documents_processed": len(documents),
             "documents_written": result.get("writer", {}).get("documents_written", 0),
+            "result": result,
+        }
+
+    def process_documents_hierarchical(self, documents: List[Document]) -> Dict[str, Any]:
+        """Process documents with hierarchical splitting.
+
+        Args:
+            documents: List of Haystack Document objects with hierarchical metadata
+
+        Returns:
+            Processing results
+        """
+        if not self.document_store:
+            raise ValueError("Document store not initialized. Call setup_document_store() first.")
+
+        # Use hierarchical splitter
+        hierarchical_splitter = HierarchicalDocumentSplitter(
+            parent_chunk_size=2000,
+            child_chunk_size=500,
+            grandchild_chunk_size=150,
+            chunk_overlap=50,
+        )
+
+        # Split documents hierarchically
+        chunks = hierarchical_splitter.split_documents(documents)
+
+        # Embed chunks
+        embedder = OllamaDocumentEmbedder(
+            model=self.config.ollama_embedding_model, url=self.config.ollama_base_url
+        )
+
+        # Embed all chunks
+        embedded_result = embedder.run(chunks)
+        embedded_docs = cast(List[Document], embedded_result["documents"])
+
+        # Write to document store
+        writer = DocumentWriter(document_store=self.document_store)
+        result = writer.run(documents=embedded_docs)
+
+        return {
+            "documents_processed": len(documents),
+            "chunks_created": len(chunks),
+            "chunks_written": result.get("documents_written", 0),
             "result": result,
         }
 
