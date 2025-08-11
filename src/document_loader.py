@@ -1,4 +1,5 @@
 import io
+import logging
 from typing import Any, Dict, List, Optional
 
 from google.oauth2 import service_account
@@ -6,6 +7,8 @@ from googleapiclient.discovery import build  # type: ignore
 from googleapiclient.http import MediaIoBaseDownload  # type: ignore
 
 from src.config import Config
+
+logger = logging.getLogger(__name__)
 
 
 class GoogleDriveLoader:
@@ -133,7 +136,9 @@ class GoogleDriveLoader:
         documents = []
         for doc_meta in doc_list:
             try:
-                content = self.download_document(doc_meta["id"])
+                content_bytes = self.download_document(doc_meta["id"])
+                # Convert bytes to string - decode as UTF-8
+                content = content_bytes.decode("utf-8", errors="ignore")
                 documents.append(
                     {
                         "content": content,
@@ -146,7 +151,7 @@ class GoogleDriveLoader:
                     }
                 )
             except Exception as e:
-                print(f"Failed to download document {doc_meta['name']}: {e}")
+                logger.error(f"Failed to download document {doc_meta['name']}: {e}")
                 continue
 
         return documents
@@ -158,3 +163,42 @@ class GoogleDriveLoader:
             List of supported MIME types
         """
         return self.SUPPORTED_MIME_TYPES.copy()
+
+    def get_folder_structure(self, root_folder_id: str) -> List[Dict[str, Any]]:
+        """Get folder structure from Google Drive.
+
+        Args:
+            root_folder_id: Root folder ID to start from
+
+        Returns:
+            List of folder dictionaries with id, name, and parents
+        """
+        if not self.service:
+            raise ValueError("Not authenticated. Call authenticate() first.")
+
+        folders = []
+        page_token = None
+
+        try:
+            # Query for all folders under the root
+            while True:
+                response = (
+                    self.service.files()
+                    .list(
+                        q="mimeType='application/vnd.google-apps.folder'",
+                        fields="nextPageToken, files(id, name, parents)",
+                        pageToken=page_token,
+                    )
+                    .execute()
+                )
+
+                folders.extend(response.get("files", []))
+                page_token = response.get("nextPageToken")
+
+                if not page_token:
+                    break
+
+        except Exception as e:
+            logger.error(f"Failed to get folder structure: {e}")
+
+        return folders

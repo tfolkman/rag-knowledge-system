@@ -90,7 +90,7 @@ class TestIntegration:
 
                 # Verify documents were loaded
                 assert len(raw_documents) == 1
-                assert raw_documents[0]["content"] == b"This is test document content."
+                assert raw_documents[0]["content"] == "This is test document content."
                 assert raw_documents[0]["metadata"]["name"] == "test.txt"
 
                 # Convert documents to Haystack format
