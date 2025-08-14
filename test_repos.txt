@@ -1,3 +1,0 @@
-# Test repository for GitHub ingestion
-# Using a small, well-known repository
-psf/requests

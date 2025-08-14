@@ -28,38 +28,8 @@ class GitHubRepositoryLoader:
         # Default configurations
         self.local_repos_dir = Path.home() / "Coding"
         self.max_file_size_mb = 10.0
-        self.allowed_extensions = [
-            ".py",
-            ".js",
-            ".ts",
-            ".jsx",
-            ".tsx",
-            ".md",
-            ".txt",
-            ".rst",
-            ".yaml",
-            ".yml",
-            ".json",
-            ".toml",
-            ".sh",
-            ".bash",
-            ".zsh",
-            ".go",
-            ".rs",
-            ".java",
-            ".cpp",
-            ".c",
-            ".h",
-            ".html",
-            ".css",
-            ".scss",
-            ".sql",
-            ".graphql",
-            ".dockerfile",
-            ".dockerignore",
-            ".gitignore",
-            ".env.example",
-        ]
+        # Only process markdown files
+        self.allowed_extensions = [".md"]
 
     def parse_repo_name(self, repo_identifier: str) -> Tuple[str, str]:
         """Parse repository identifier to extract owner and repo name.

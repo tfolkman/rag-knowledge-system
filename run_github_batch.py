@@ -64,7 +64,7 @@ def main():
         "--max-file-size",
         type=float,
         default=10.0,
-        help="Maximum file size in MB to process (default: 10MB)",
+        help="Maximum file size in MB to process (default: 10MB, only .md files are processed)",
     )
 
     args = parser.parse_args()
@@ -98,6 +98,7 @@ def main():
 
     console.print(f"[cyan]Loading {len(repo_list)} repositories from {repos_file}[/cyan]")
     console.print(f"[cyan]Local directory: {local_dir}[/cyan]")
+    console.print("[cyan]Processing only: Markdown files (.md)[/cyan]")
     console.print()
 
     # Initialize loader
