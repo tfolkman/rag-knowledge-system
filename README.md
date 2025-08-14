@@ -5,15 +5,17 @@ A local RAG (Retrieval-Augmented Generation) system with Google Drive integratio
 ## Features
 
 - 📁 **Google Drive Integration**: Load documents directly from your Google Drive
+- 🐙 **GitHub Repository Ingestion**: Batch ingest markdown documentation from multiple GitHub repos
 - 🔒 **Local LLM**: Uses Ollama for private, local AI processing
 - 🔍 **Vector Search**: Powered by Qdrant for fast semantic search
 - 🚀 **Modern Framework**: Built with Haystack for flexible AI pipelines
 - 💻 **Rich Terminal UI**: Beautiful command-line interface using Rich
-- ✅ **Test-Driven**: Comprehensive test suite (70+ tests) with TDD methodology
+- ✅ **Test-Driven**: Comprehensive test suite (110+ tests) with TDD methodology
 
 ## Tech Stack
 
 - **Google Drive API**: Document loading with `llama-index-readers-google`
+- **GitHub CLI**: Repository cloning and authentication for private repos
 - **Haystack**: AI pipeline orchestration
 - **Qdrant**: Vector database for document storage and retrieval
 - **Ollama**: Local LLM hosting (Llama 3.2, Mistral, etc.)
@@ -33,6 +35,19 @@ curl -fsSL https://ollama.com/install.sh | sh
 # Pull required models
 ollama pull llama3.2:latest
 ollama pull mxbai-embed-large
+
+# Install GitHub CLI (for repository ingestion)
+# macOS
+brew install gh
+
+# Linux
+curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+sudo apt update
+sudo apt install gh
+
+# Authenticate with GitHub (for private repos)
+gh auth login
 ```
 
 ### 2. Setup Project
@@ -60,6 +75,8 @@ docker-compose up -d
 
 ### 4. Run the System
 
+#### Google Drive Ingestion
+
 ```bash
 # Full setup and chat
 uv run python run.py
@@ -73,6 +90,33 @@ uv run python run.py --chat-only
 # Setup only (no chat)
 uv run python run.py --setup-only
 ```
+
+#### GitHub Repository Ingestion
+
+The system can batch ingest markdown documentation from multiple GitHub repositories:
+
+```bash
+# Create a list of repositories to ingest (one per line)
+cat > repos.txt << EOF
+owner/repo1
+owner/repo2
+myorg/private-repo
+EOF
+
+# Ingest repositories (checks ~/Coding first, clones if needed)
+just ingest-github repos.txt
+
+# Force fresh clone (ignore local copies)
+just ingest-github-fresh repos.txt
+
+# Clear store and reingest
+just reingest-github repos.txt
+
+# Use custom local directory
+just ingest-github repos.txt ~/Projects
+```
+
+**Note**: Only `.md` files are processed to focus on documentation and README files.
 
 ## Configuration
 
@@ -96,6 +140,11 @@ LOG_LEVEL=INFO
 MAX_DOCUMENTS_PER_BATCH=10
 CHUNK_SIZE=500
 CHUNK_OVERLAP=50
+
+# GitHub Repository Ingestion Configuration
+GITHUB_LOCAL_REPOS_DIR=~/Coding
+GITHUB_MAX_FILE_SIZE_MB=10
+GITHUB_FILE_EXTENSIONS=.md
 ```
 
 ## Usage Examples
