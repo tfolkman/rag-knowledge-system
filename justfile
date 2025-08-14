@@ -234,3 +234,22 @@ health:
 # Quick start (all-in-one command)
 quickstart: wizard dev run
     @echo "🚀 System is running!"
+
+# GitHub Repository Ingestion Commands
+# =====================================
+
+# Ingest GitHub repositories from a file list
+ingest-github file repos_dir="~/Coding":
+    uv run python run_github_batch.py --repos-file {{file}} --local-dir {{repos_dir}}
+
+# Ingest with fresh clone (ignore local copies)
+ingest-github-fresh file repos_dir="~/Coding":
+    uv run python run_github_batch.py --repos-file {{file}} --local-dir {{repos_dir}} --force-clone
+
+# Clear vector store and re-ingest repositories
+reingest-github file repos_dir="~/Coding":
+    uv run python run_github_batch.py --repos-file {{file}} --local-dir {{repos_dir}} --clear-store
+
+# Ingest without updating existing local repos
+ingest-github-no-update file repos_dir="~/Coding":
+    uv run python run_github_batch.py --repos-file {{file}} --local-dir {{repos_dir}} --no-update

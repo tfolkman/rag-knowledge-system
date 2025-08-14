@@ -1,0 +1,21 @@
+# Example GitHub repository list for batch ingestion
+# Format: owner/repository (one per line)
+# Lines starting with # are comments and will be ignored
+
+# Python projects
+langchain-ai/langchain
+openai/openai-python
+psf/requests
+
+# JavaScript/TypeScript projects
+facebook/react
+vercel/next.js
+microsoft/TypeScript
+
+# Documentation and tutorials
+github/docs
+TheAlgorithms/Python
+
+# Your own repositories
+# myusername/my-project
+# myorg/private-repo
