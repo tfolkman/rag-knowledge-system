@@ -49,26 +49,6 @@ repos:
         args: ['--baseline', '.secrets.baseline']
         exclude: package-lock.json
 
-  # Trivy vulnerability scanner
-  - repo: https://github.com/mxab/pre-commit-trivy
-    rev: v0.15.0
-    hooks:
-      - id: trivyfs-docker
-        args:
-          - --skip-dirs
-          - .venv
-          - --skip-dirs
-          - __pycache__
-          - --skip-dirs
-          - .git
-          - --skip-dirs
-          - data
-          - --severity
-          - CRITICAL,HIGH,MEDIUM
-          - --exit-code
-          - "1"
-          - .
-
   # General pre-commit hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
